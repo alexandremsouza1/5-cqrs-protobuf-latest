@@ -3,7 +3,7 @@ package main;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "./src/infrastructure/api/events";
+option go_package = "./events";
 
 message BookRoom {
     string room_id = 1;

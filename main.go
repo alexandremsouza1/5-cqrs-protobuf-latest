@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"main.go/events"
 	"math/rand"
 	"sync"
 	"time"
@@ -32,12 +33,12 @@ func (b BookRoomHandler) HandlerName() string {
 
 // NewCommand returns type of command which this handle should handle. It must be a pointer.
 func (b BookRoomHandler) NewCommand() interface{} {
-	return &BookRoom{}
+	return &events.BookRoom{}
 }
 
 func (b BookRoomHandler) Handle(ctx context.Context, c interface{}) error {
 	// c is always the type returned by `NewCommand`, so casting is always safe
-	cmd := c.(*BookRoom)
+	cmd := c.(*events.BookRoom)
 
 	// some random price, in production you probably will calculate in wiser way
 	price := (rand.Int63n(40) + 1) * 10
@@ -52,7 +53,7 @@ func (b BookRoomHandler) Handle(ctx context.Context, c interface{}) error {
 
 	// RoomBooked will be handled by OrderBeerOnRoomBooked event handler,
 	// in future RoomBooked may be handled by multiple event handler
-	if err := b.eventBus.Publish(ctx, &RoomBooked{
+	if err := b.eventBus.Publish(ctx, &events.RoomBooked{
 		ReservationId: watermill.NewUUID(),
 		RoomId:        cmd.RoomId,
 		GuestName:     cmd.GuestName,
@@ -77,13 +78,13 @@ func (o OrderBeerOnRoomBooked) HandlerName() string {
 }
 
 func (OrderBeerOnRoomBooked) NewEvent() interface{} {
-	return &RoomBooked{}
+	return &events.RoomBooked{}
 }
 
 func (o OrderBeerOnRoomBooked) Handle(ctx context.Context, e interface{}) error {
-	event := e.(*RoomBooked)
+	event := e.(*events.RoomBooked)
 
-	orderBeerCmd := &OrderBeer{
+	orderBeerCmd := &events.OrderBeer{
 		RoomId: event.RoomId,
 		Count:  rand.Int63n(10) + 1,
 	}
@@ -102,18 +103,18 @@ func (o OrderBeerHandler) HandlerName() string {
 }
 
 func (o OrderBeerHandler) NewCommand() interface{} {
-	return &OrderBeer{}
+	return &events.OrderBeer{}
 }
 
 func (o OrderBeerHandler) Handle(ctx context.Context, c interface{}) error {
-	cmd := c.(*OrderBeer)
+	cmd := c.(*events.OrderBeer)
 
 	if rand.Int63n(10) == 0 {
 		// sometimes there is no beer left, command will be retried
 		return errors.Errorf("no beer left for room %s, please try later", cmd.RoomId)
 	}
 
-	if err := o.eventBus.Publish(ctx, &BeerOrdered{
+	if err := o.eventBus.Publish(ctx, &events.BeerOrdered{
 		RoomId: cmd.RoomId,
 		Count:  cmd.Count,
 	}); err != nil {
@@ -144,7 +145,7 @@ func (b BookingsFinancialReport) HandlerName() string {
 }
 
 func (BookingsFinancialReport) NewEvent() interface{} {
-	return &RoomBooked{}
+	return &events.RoomBooked{}
 }
 
 func (b *BookingsFinancialReport) Handle(ctx context.Context, e interface{}) error {
@@ -152,7 +153,7 @@ func (b *BookingsFinancialReport) Handle(ctx context.Context, e interface{}) err
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	event := e.(*RoomBooked)
+	event := e.(*events.RoomBooked)
 
 	// When we are using Pub/Sub which doesn't provide exactly-once delivery semantics, we need to deduplicate messages.
 	// GoChannel Pub/Sub provides exactly-once delivery,
@@ -279,7 +280,7 @@ func publishCommands(commandBus *cqrs.CommandBus) func() {
 			panic(err)
 		}
 
-		bookRoomCmd := &BookRoom{
+		bookRoomCmd := &events.BookRoom{
 			RoomId:    fmt.Sprintf("%d", i),
 			GuestName: "John",
 			StartDate: startDate,
