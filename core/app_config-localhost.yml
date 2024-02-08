@@ -1,0 +1,39 @@
+host: 0.0.0.0:8206
+environment: dev
+grpcui_host: 0.0.0.0:8207
+grpcweb_host: 0.0.0.0:8208
+webserver_host: 0.0.0.0:8290
+profile_host: 127.0.0.1:6290
+use_tls: false
+tls_cert_path: /cert/server-cert.pem
+tls_key_path: /cert/server-key.pem
+datastore:
+  #marketdata_dns: "postgres://postgres:edifier@bd.inovaquant.com:5432/marketdata?sslmode=disable" 
+  core_dsn: mongodb://localhost:27017
+  core_username: root
+  core_password: root
+  core_database: admin
+  context_timeout: 120
+  account_collection_name: Account
+  marketdata_collection_name: Marketdata
+  instrument_collection_name: Instrument
+redis_settings:
+  redis_addrs: localhost:6290
+  redis_password: null
+core_account_grpc_service_url: 0.0.0.0:8206
+core_marketdata_grpc_service_url: 0.0.0.0:8206
+log:
+  disabled: false
+  level: info
+  directory:  /logs/sirius/
+  rotation_days: 365
+  file_max_size: 10
+  compress_old_file: true
+authorization:
+  disabled: true
+debug:
+  enable_profile_server: true
+init: false
+secret_otp: MQUKNWCIVEML66PMQAPJ4BWAMDS4GER6AOXOAGCLRECGJO55AUMZBOFLRT6UADGKDHBXK66IUICMSD437INJ4HBPSB52VE7W2RASQA #CORE_OTP_SECRET
+secret_jwt: PGxk7uIiq2CdSge0bBRlBXu0npMTUxI3YMWwZnjrHQNBMK8utcZDDRAuKykeIfV1FsD+7mJ7Esc66LrJw2cBGg== #CORE_JWT_ACCESS_SECRET
+secret_aes: v6dXIJGVE8ClLF6c2atlOPkDaQTl/yGmlGBy2tKX2GE= #CORE_AES_SECRET

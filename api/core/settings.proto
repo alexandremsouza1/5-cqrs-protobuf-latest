@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package core;
+
+option go_package = "main.go/proto;settingsv1";
+
+enum Environment {
+  DEVELOPMENT = 0;
+  PRODUCTION = 1;
+}
+
+message Settings {
+  string serve_address = 1;
+  string grpc_web_serve_address = 2;
+  string grpc_gateway_serve_address = 3;
+  string source_url = 5;
+  Environment environment = 6;
+
+  bool use_tls = 14;
+  string tls_cert_path = 15;
+  string tls_key_path = 16;
+
+
+  // Individual service settings
+  // InstrumentAPISettings instrument_api_settings = 20;
+  // CustomerAPISettings customer_api_settings = 21;
+  // EmailAPISettings email_api_settings = 22;
+  // ProductAPISettings product_api_settings = 23;
+  // ProductInfoAPISettings product_info_api_settings = 24;
+  CustomerAPISettings customer_api_settings = 25;
+  RedisSettings redis_settings = 26;
+  DataStoreConfig datastore_config = 27;
+  AuthorizationServiceSettings authorization_service_settings = 28;
+  DebugServiceSettings debug_service_settings = 29;
+}
+
+
+
+message CustomerAPISettings {
+  string default_url = 1;
+  MongoClientConfig mongo_config = 2;
+}
+
+message RedisSettings {
+  string addrs = 1;
+  string password = 2;
+  int32 expiration = 3;
+}
+
+message DataStoreConfig {
+  string dsn = 1;
+  string username = 2;
+  string password = 3;
+  string database = 4;
+}
+
+message AuthorizationServiceSettings {
+  bool disabled = 1;
+}
+
+message DebugServiceSettings {
+  string serve_address = 1;
+  bool enable_profile_server = 2;
+}
+
+message MongoClientConfig {
+  string url = 1;
+  string database_name = 2;
+  string collection_name = 3;
+  int64 context_timeout = 4;
+}
