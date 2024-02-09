@@ -20,6 +20,7 @@ import (
 	core "main.go/proto/core"
 	logger "main.go/services/logger"
 	crypto "main.go/services/crypto"
+	"main.go/services"
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	homedir "github.com/mitchellh/go-homedir"
 
@@ -38,21 +39,67 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/golang/protobuf/ptypes"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/ThreeDotsLabs/watermill"
-	"github.com/ThreeDotsLabs/watermill-amqp/v2/pkg/amqp"
-	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 )
 
 var cfgFile string
 var globalUsage = `QIS System`
-var amqpAddress = "amqp://user:password@rabbitmq:5672/"
+var amqpAddress = "amqp://user:password@localhost:5672/"
+var host = viper.GetString("host")
+var environment = viper.GetString("environment")
+var grpcuiHost = viper.GetString("grpcui_host")
+var grpcwebHost = viper.GetString("grpcweb_host")
+var webserverHost = viper.GetString("webserver_host")
+var useTLS = viper.GetBool("use_tls")
+var tlsCertPath = viper.GetString("tls_cert_path")
+var tlsKeyPath = viper.GetString("tls_key_path")
+var redisAddrs = viper.GetString("redis_settings.redis_addrs")
+var redisPassword = viper.GetString("redis_settings.redis_password")
+var datastore_dsn = viper.GetString("datastore.core_dsn")
+var datastore_username = viper.GetString("datastore.core_username")
+var datastore_password = viper.GetString("datastore.core_password")
+var datastore_database = viper.GetString("datastore.core_database")
+var profile_server_host = viper.GetString("profile_host")
+var enable_profile_server = viper.GetBool("debug.enable_profile_server")
 
+var settings = &core.Settings{
+	ServeAddress: host,
+	Environment:  getEnvironment(environment),
+	//SourceType:   proto.SettingsSourceType_SETTINGS_SOURCE_BINARY,
+	SourceUrl:   "",
+	UseTls:      useTLS,
+	TlsCertPath: tlsCertPath,
+	TlsKeyPath:  tlsKeyPath,
+	CustomerApiSettings: &core.CustomerAPISettings{
+		DefaultUrl: "0.0.0.0:8080",
+		MongoConfig: &core.MongoClientConfig{
+			Url:            datastore_dsn,
+			DatabaseName:   datastore_database,
+			CollectionName: "Customer",
+			ContextTimeout: 120,
+		},
+	},
+	RedisSettings: &core.RedisSettings{
+		Addrs:    redisAddrs,
+		Password: redisPassword,
+	},
+	DatastoreConfig: &core.DataStoreConfig{
+		Dsn:      datastore_dsn,
+		Username: datastore_username,
+		Password: datastore_password,
+		Database: datastore_database,
+	},
+	DebugServiceSettings: &core.DebugServiceSettings{
+		ServeAddress:        profile_server_host,
+		EnableProfileServer: enable_profile_server,
+	},
+}
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "app_config",
@@ -71,28 +118,7 @@ var rootCmd = &cobra.Command{
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := watermill.NewStdLogger(false, false)
-		cqrsMarshaler := cqrs.ProtobufMarshaler{}
-	
-		// You can use any Pub/Sub implementation from here: https://watermill.io/docs/pub-sub-implementations/
-		// Detailed RabbitMQ implementation: https://watermill.io/docs/pub-sub-implementations/#rabbitmq-amqp
-		// Commands will be send to queue, because they need to be consumed once.
-		commandsAMQPConfig := amqp.NewDurableQueueConfig(amqpAddress)
-		commandsPublisher, err := amqp.NewPublisher(commandsAMQPConfig, logger)
-		if err != nil {
-			panic(err)
-		}
-		commandsSubscriber, err := amqp.NewSubscriber(commandsAMQPConfig, logger)
-		if err != nil {
-			panic(err)
-		}
-	
-		// Events will be published to PubSub configured Rabbit, because they may be consumed by multiple consumers.
-		// (in that case BookingsFinancialReport and OrderBeerOnRoomBooked).
-		eventsPublisher, err := amqp.NewPublisher(amqp.NewDurablePubSubConfig(amqpAddress, nil), logger)
-		if err != nil {
-			panic(err)
-		}
-	
+
 		// CQRS is built on messages router. Detailed documentation: https://watermill.io/docs/messages-router/
 		router, err := message.NewRouter(message.RouterConfig{}, logger)
 		if err != nil {
@@ -108,48 +134,7 @@ var rootCmd = &cobra.Command{
 	
 		// cqrs.Facade is facade for Command and Event buses and processors.
 		// You can use facade, or create buses and processors manually (you can inspire with cqrs.NewFacade)
-		cqrsFacade, err := cqrs.NewFacade(cqrs.FacadeConfig{
-			GenerateCommandsTopic: func(commandName string) string {
-				// we are using queue RabbitMQ config, so we need to have topic per command type
-				return commandName
-			},
-			CommandHandlers: func(cb *cqrs.CommandBus, eb *cqrs.EventBus) []cqrs.CommandHandler {
-				return []cqrs.CommandHandler{
-					BookRoomHandler{eb},
-					OrderBeerHandler{eb},
-				}
-			},
-			CommandsPublisher: commandsPublisher,
-			CommandsSubscriberConstructor: func(handlerName string) (message.Subscriber, error) {
-				// we can reuse subscriber, because all commands have separated topics
-				return commandsSubscriber, nil
-			},
-			GenerateEventsTopic: func(eventName string) string {
-				// because we are using PubSub RabbitMQ config, we can use one topic for all events
-				return "events"
-	
-				// we can also use topic per event type
-				// return eventName
-			},
-			EventHandlers: func(cb *cqrs.CommandBus, eb *cqrs.EventBus) []cqrs.EventHandler {
-				return []cqrs.EventHandler{
-					OrderBeerOnRoomBooked{cb},
-					NewBookingsFinancialReport(),
-				}
-			},
-			EventsPublisher: eventsPublisher,
-			EventsSubscriberConstructor: func(handlerName string) (message.Subscriber, error) {
-				config := amqp.NewDurablePubSubConfig(
-					amqpAddress,
-					amqp.GenerateQueueNameTopicNameWithSuffix(handlerName),
-				)
-	
-				return amqp.NewSubscriber(config, logger)
-			},
-			Router:                router,
-			CommandEventMarshaler: cqrsMarshaler,
-			Logger:                logger,
-		})
+		cqrsFacade, err := services.NewServer(amqpAddress)
 		if err != nil {
 			panic(err)
 		}

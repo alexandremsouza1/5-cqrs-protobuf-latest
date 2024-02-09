@@ -1,36 +1,17 @@
 package ports
 
 import (
-	// "context"
-	// "encoding/json"
-	// "errors"
-	// "fmt"
-	// "io/ioutil"
-	// "net/http"
-	// "strings"
 
-	// "main.go/common"
-	accv1 "main.go/proto/core/customer/v1"
-
-	"main.go/business/customer/app"
-	// "main.go/business/customer/app/command"
-	// "main.go/business/customer/domain"
-	// "main.go/services/crypto"
-	// "main.go/services/logger"
-
-	// "google.golang.org/api/oauth2/v2"
-
+	"main.go/business/book/app"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
-	// "google.golang.org/grpc/codes"
 )
 
 type GRPCService struct {
-	*accv1.UnimplementedCustomerServiceServer
-	app        app.CustomerApp
+	app        app.BookApp
 	commandBus *cqrs.CommandBus
 }
 
-func NewGRPCService(app app.CustomerApp, commandBus *cqrs.CommandBus) (*GRPCService, error) {
+func NewGRPCService(app app.BookApp, commandBus *cqrs.CommandBus) (*GRPCService, error) {
 	var err error
 	if err != nil {
 		return nil, err
