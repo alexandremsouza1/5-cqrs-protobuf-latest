@@ -140,7 +140,7 @@ var rootCmd = &cobra.Command{
 		}
 	
 		// publish BookRoom commands every second to simulate incoming traffic
-		go publishCommands(cqrsFacade.CommandBus())
+		publishCommands(cqrsFacade.CommandBus())
 	
 		// processors are based on router, so they will work when router will start
 		if err := router.Run(context.Background()); err != nil {
